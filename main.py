@@ -31,6 +31,8 @@ def create_variable(ds, name, values, dim_name):
         arr = np.array([list(str(v).ljust(max_len)) for v in values], dtype='S1')
         var[:, :] = arr
 
+import traceback
+
 @app.post("/generate-netcdf/")
 async def generate_netcdf(file: UploadFile = File(...)):
     try:
@@ -50,7 +52,7 @@ async def generate_netcdf(file: UploadFile = File(...)):
         ds.createDimension("registro", n_datos)
         if n_datos > 0:
             for key in datos[0].keys():
-                valores = [str(d.get(key, "")) if d.get(key) is not None else "" for d in datos]
+                valores = [d.get(key, "") if d.get(key) is not None else "" for d in datos]
                 create_variable(ds, key, valores, "registro")
 
         # Crear dimensión y variables para Estaciones
@@ -59,7 +61,7 @@ async def generate_netcdf(file: UploadFile = File(...)):
         ds.createDimension("estacion", n_est)
         if n_est > 0:
             for key in estaciones[0].keys():
-                valores = [str(e.get(key, "")) if e.get(key) is not None else "" for e in estaciones]
+                valores = [e.get(key, "") if e.get(key) is not None else "" for e in estaciones]
                 create_variable(ds, key, valores, "estacion")
 
         # Guardar Metadatos como atributos globales
@@ -81,9 +83,11 @@ async def generate_netcdf(file: UploadFile = File(...)):
         return response
 
     except Exception as e:
+        tb_str = traceback.format_exc()
+        print(tb_str)  # Esto imprimirá el error completo en logs
         raise HTTPException(status_code=500, detail=f"Error creando NetCDF: {e}")
 
     finally:
-        time.sleep(1)  # esperar un poco para evitar borrar antes
+        time.sleep(1)
         if os.path.exists(tmp_filename):
             os.remove(tmp_filename)
