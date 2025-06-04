@@ -1,12 +1,23 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
 from netCDF4 import Dataset
 import numpy as np
 import os
 import uuid
+import io
+import time
 
 app = FastAPI()
+
+# ✅ CORS configurado justo después de crear la app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Cambia esto si quieres restringir a tu dominio
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/generate-netcdf/")
 async def generate_netcdf(file: UploadFile = File(...)):
@@ -20,7 +31,6 @@ async def generate_netcdf(file: UploadFile = File(...)):
 
     try:
         ds = Dataset(tmp_filename, "w", format="NETCDF4")
-
         n = len(data.get("Datos", []))
         ds.createDimension("registro", n)
 
@@ -31,9 +41,15 @@ async def generate_netcdf(file: UploadFile = File(...)):
         ds.title = "Datos exportados desde FastAPI"
         ds.close()
 
-        return FileResponse(tmp_filename, filename="datos.nc", media_type="application/netcdf")
+        file_stream = open(tmp_filename, "rb")
+        response = StreamingResponse(file_stream, media_type="application/netcdf")
+        response.headers["Content-Disposition"] = "attachment; filename=datos.nc"
+        return response
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creando NetCDF: {e}")
+
     finally:
+        time.sleep(1)
         if os.path.exists(tmp_filename):
             os.remove(tmp_filename)
