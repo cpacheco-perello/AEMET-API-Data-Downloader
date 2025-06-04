@@ -31,6 +31,9 @@ def create_variable(group, name, values, dim_name):
         arr = np.array(values, dtype=np.float32)
         var = group.createVariable(name, np.float32, (dim_name,))
         var[:] = arr
+@app.get("/ping")
+async def ping():
+    return {"status": "alive"}
 
 @app.post("/generate-netcdf/")
 async def generate_netcdf(request: Request):
