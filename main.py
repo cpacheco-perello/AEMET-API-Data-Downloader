@@ -18,30 +18,19 @@ app.add_middleware(
 )
 
 def create_variable(group, name, values, dim_name):
-    force_as_string = {"fecha", "fecha_inicio", "fecha_fin"}  # Añade otros campos aquí
+    force_as_string = {"fecha", "fecha_inicio", "fecha_fin"}  # Otros campos si quieres
 
     if name in force_as_string or any(isinstance(v, str) for v in values):
-        # Trata todo como string
-        encoded_values = [str(v).strip().encode('utf-8') for v in values]
-        max_len = max(len(v) for v in encoded_values)
+        # Guardar como variable string nativa (tipo variable Unicode)
+        dt = str  # netCDF4 entiende que es string unicode
 
-        dim_str_name = f"{name}_str_len"
-        if dim_str_name not in group.dimensions:
-            group.createDimension(dim_str_name, max_len)
-
-        var = group.createVariable(name, 'S1', (dim_name, dim_str_name))
-        arr = np.zeros((len(values), max_len), dtype='S1')
-
-        for i, v in enumerate(encoded_values):
-            arr[i, :len(v)] = np.array(list(v), dtype='S1')  # ✅ Corrección aquí
-
-        var[:, :] = arr
+        var = group.createVariable(name, dt, (dim_name,))
+        var[:] = np.array(values, dtype=object)
     else:
         # Guardar como float
         arr = np.array(values, dtype=np.float32)
         var = group.createVariable(name, np.float32, (dim_name,))
         var[:] = arr
-
 
 @app.post("/generate-netcdf/")
 async def generate_netcdf(request: Request):
