@@ -7,7 +7,7 @@ import numpy as np
 import os
 import uuid
 import time
-
+from fastapi import Request
 app = FastAPI()
 
 app.add_middleware(
@@ -34,12 +34,12 @@ def create_variable(ds, name, values, dim_name):
 import traceback
 
 @app.post("/generate-netcdf/")
-async def generate_netcdf(file: UploadFile = File(...)):
+async def generate_netcdf(request: Request):
     try:
-        data_bytes = await file.read()
-        data = json.loads(data_bytes)
+        data = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="JSON inválido")
+
 
     tmp_filename = f"{uuid.uuid4()}.nc"
 
