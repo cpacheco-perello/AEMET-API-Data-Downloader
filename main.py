@@ -18,21 +18,30 @@ app.add_middleware(
 )
 
 def create_variable(group, name, values, dim_name):
-    try:
-        # Intentar crear variable numérica float
-        arr = np.array(values, dtype=np.float32)
-        var = group.createVariable(name, np.float32, (dim_name,))
-        var[:] = arr
-    except Exception:
-        # Si falla, crear variable string (S1)
-        max_len = max(len(str(v)) for v in values)
-        # Crear dimensión para longitud de string si no existe
+    force_as_string = {"fecha", "fecha_inicio", "fecha_fin"}  # Añade otros campos aquí
+
+    if name in force_as_string or any(isinstance(v, str) for v in values):
+        # Trata todo como string
+        encoded_values = [str(v).strip().encode('utf-8') for v in values]
+        max_len = max(len(v) for v in encoded_values)
+
         dim_str_name = f"{name}_str_len"
         if dim_str_name not in group.dimensions:
             group.createDimension(dim_str_name, max_len)
+
         var = group.createVariable(name, 'S1', (dim_name, dim_str_name))
-        arr = np.array([list(str(v).ljust(max_len)) for v in values], dtype='S1')
+        arr = np.zeros((len(values), max_len), dtype='S1')
+
+        for i, v in enumerate(encoded_values):
+            arr[i, :len(v)] = np.array(list(v), dtype='S1')  # ✅ Corrección aquí
+
         var[:, :] = arr
+    else:
+        # Guardar como float
+        arr = np.array(values, dtype=np.float32)
+        var = group.createVariable(name, np.float32, (dim_name,))
+        var[:] = arr
+
 
 @app.post("/generate-netcdf/")
 async def generate_netcdf(request: Request):
