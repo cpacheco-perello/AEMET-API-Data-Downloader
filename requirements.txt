@@ -2,3 +2,4 @@ fastapi
 uvicorn
 netcdf4
 numpy
+python-multipart
