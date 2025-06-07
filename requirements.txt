@@ -3,3 +3,4 @@ uvicorn
 netcdf4
 numpy
 python-multipart
+httpx

@@ -8,7 +8,24 @@ import uuid
 import time
 import traceback
 
+import httpx
+from fastapi.responses import JSONResponse
+
+
 app = FastAPI()
+
+
+
+api_keys = [
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjcGFjaGVjby5wZXJlbGxvQGdtYWlsLmNvbSIsImp0aSI6IjQ1NjgyODczLTczMTUtNGRkMS1hN2U2LTA3NzZlZThmNjY4MiIsImlzcyI6IkFFTUVUIiwiaWF0IjoxNzQ4MjkzNTU3LCJ1c2VySWQiOiI0NTY4Mjg3My03MzE1LTRkZDEtYTdlNi0wNzc2ZWU4ZjY2ODIiLCJyb2xlIjoiIn0.fvJNIic8vWZ7MpoPTwjRnvrnHvFi26wRHQ-uvciCuQE",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjcGFjaGVjby5wZXJlbGxvQGdtYWlsLmNvbSIsImp0aSI6IjQ2NjAxZjNkLTk3MGMtNGNiZS05ZTRjLTc3NmE3NzNiMTM4ZSIsImlzcyI6IkFFTUVUIiwiaWF0IjoxNzQ5MzA5NzIwLCJ1c2VySWQiOiI0NjYwMWYzZC05NzBjLTRjYmUtOWU0Yy03NzZhNzczYjEzOGUiLCJyb2xlIjoiIn0.u6YOgw5bXdb4eCW8jubn21ssWc84X-urDpqwsX-4HsA",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjcGFjaGVjby5wZXJlbGxvQGdtYWlsLmNvbSIsImp0aSI6IjczYjI0OGQ3LTdjOTktNDc5Ni04NjA3LTM1MzNmYmYyM2QzMSIsImlzcyI6IkFFTUVUIiwiaWF0IjoxNzQ5MzEwNTYzLCJ1c2VySWQiOiI3M2IyNDhkNy03Yzk5LTQ3OTYtODYwNy0zNTMzZmJmMjNkMzEiLCJyb2xlIjoiIn0.eIZZqjV9HqVkbak6YDjIh_Z0pTxxSwQcimS7fWiUwRw"
+]
+
+max_retries = 3
+base_wait_time_ms = 8000  # tiempo base en milisegundos
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -94,3 +111,44 @@ async def generate_netcdf(request: Request):
         time.sleep(1)
         if os.path.exists(tmp_filename):
             os.remove(tmp_filename)
+
+
+
+
+@app.get("/fetch-data-retry/")
+async def fetch_with_retries(url: str, tipo: str):
+    async with httpx.AsyncClient() as client:
+        # Intentamos por cada API key
+        for api_key in api_keys:
+            endpoint_with_api_key = url.replace("{apiKey}", api_key)
+
+            for attempt in range(max_retries):
+                try:
+                    # Hacemos la solicitud con la API key actual
+                    response = await client.get(endpoint_with_api_key)
+
+                    if response.status_code != 200:
+                        raise HTTPException(status_code=response.status_code, detail=f"Error HTTP {response.status_code}")
+
+                    data = response.json()  # Parseamos la respuesta a JSON
+                    return JSONResponse(content=data)
+
+                except httpx.RequestError as e:
+                    # Si falla la solicitud, se captura el error y se hace un reintento
+                    if attempt < max_retries - 1:
+                        wait_time = base_wait_time_ms * (2 ** attempt) / 1000  # Exponential backoff
+                        time.sleep(wait_time)  # Esperamos antes de hacer el siguiente intento
+                        continue
+                    else:
+                        return JSONResponse(
+                            content={"error": f"Failed after {max_retries} attempts: {str(e)}"},
+                            status_code=500
+                        )
+                except Exception as e:
+                    # Cualquier otro tipo de error
+                    return JSONResponse(
+                        content={"error": f"Error al procesar la solicitud: {str(e)}"},
+                        status_code=500
+                    )
+
+    return JSONResponse(content={"error": "No valid API key or max retries exceeded"}, status_code=500)
